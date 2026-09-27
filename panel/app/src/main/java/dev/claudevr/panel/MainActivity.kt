@@ -36,6 +36,7 @@ class MainActivity : Activity(), Voice.Listener {
 
     private lateinit var status: TextView
     private lateinit var captureButton: Button
+    private lateinit var recButton: Button
     private lateinit var scroll: ScrollView
     private lateinit var messages: LinearLayout
     private lateinit var input: EditText
@@ -53,7 +54,10 @@ class MainActivity : Activity(), Voice.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = Settings(this)
-        voice = Voice(this).also { it.listener = this }
+        voice = Voice(this).also {
+            it.listener = this
+            it.onSpeechFile = { wav -> CaptureService.instance?.addSpeech(wav) }
+        }
         setContentView(FrameLayout(this).apply {
             addView(buildUi())
             if (savedInstanceState == null) showSplash(this)
@@ -136,6 +140,8 @@ class MainActivity : Activity(), Voice.Listener {
         top.addView(status, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         captureButton = smallButton("") { toggleCapture() }
         top.addView(captureButton)
+        recButton = smallButton("") { toggleRecording() }
+        top.addView(recButton)
         top.addView(smallButton("Canvas") { CanvasActivity.open(this) })
         top.addView(smallButton("New chat") { newChat() })
         top.addView(smallButton("Settings") { showSettings() })
@@ -320,6 +326,26 @@ class MainActivity : Activity(), Voice.Listener {
         status.text = if (on) "● Claude can see your view" else "○ View capture off"
         status.setTextColor(if (on) 0xFF7BD88F.toInt() else 0xFF9A9A9A.toInt())
         captureButton.text = if (on) "Stop view" else "Share view"
+        val rec = CaptureService.instance?.recording == true
+        recButton.isEnabled = on
+        recButton.text = if (rec) "■ Stop rec" else "● Rec"
+        recButton.setTextColor(if (rec) 0xFFFF6B5B.toInt() else Color.WHITE)
+    }
+
+    /** Records the view (plus Claude's speech as separate files) for demo videos. */
+    private fun toggleRecording() {
+        val svc = CaptureService.instance ?: return
+        if (svc.recording) {
+            svc.stopRecording { dir ->
+                updateCaptureState()
+                if (dir != null) addNote("Demo saved: ${dir.name}")
+            }
+        } else {
+            svc.startRecording { dir ->
+                updateCaptureState()
+                addNote(if (dir != null) "Recording demo…" else "Couldn't start recording.")
+            }
+        }
     }
 
     private fun toggleCapture() {

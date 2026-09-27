@@ -2,6 +2,8 @@ package dev.claudevr.panel
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -14,6 +16,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -40,6 +43,12 @@ class Voice(private val context: Context) {
     private var ttsReady = false
     private var pendingSpeech: String? = null
     private val triedEngines = mutableSetOf<String>()
+    private var player: MediaPlayer? = null
+    private var speechSeq = 0
+    private var currentSpeech: String? = null
+
+    /** Called with each reply's audio file as it starts playing (used for demo recordings). */
+    var onSpeechFile: ((File) -> Unit)? = null
     private val ttsThread = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private val prefs = context.getSharedPreferences("voice", Context.MODE_PRIVATE)
@@ -99,11 +108,40 @@ class Voice(private val context: Context) {
             pendingSpeech = text // spoken once an engine is ready
             return
         }
+        // Synthesize to a file and play it ourselves: the audio is then ours to
+        // capture for demo recordings (eSpeak blocks playback capture).
+        val id = "reply-${++speechSeq}"
+        val file = File(context.cacheDir, "$id.wav")
+        currentSpeech = id
         ttsThread.execute {
-            val result = engine.speak(plain(text), TextToSpeech.QUEUE_FLUSH, null, "reply")
-            Log.i(TAG, "TTS speak() -> $result (${text.length} chars)")
+            val result = engine.synthesizeToFile(plain(text), Bundle(), file, id)
+            Log.i(TAG, "TTS synthesize -> $result (${text.length} chars)")
             if (result != TextToSpeech.SUCCESS) main.post { listener?.onError("Text-to-speech failed ($result).") }
         }
+    }
+
+    private fun play(id: String) {
+        if (id != currentSpeech) return // superseded by a newer reply or stopped
+        val file = File(context.cacheDir, "$id.wav")
+        player?.release()
+        player = try {
+            MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                setDataSource(file.path)
+                setOnCompletionListener { file.delete() }
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "playback failed", e)
+            null
+        }
+        if (player != null) onSpeechFile?.invoke(file)
     }
 
     /**
@@ -146,11 +184,16 @@ class Voice(private val context: Context) {
     }
 
     fun stopSpeaking() {
+        currentSpeech = null
+        player?.release()
+        player = null
         val engine = tts ?: return
         if (ttsReady) ttsThread.execute { engine.stop() }
     }
 
     fun release() {
+        player?.release()
+        player = null
         recognizer?.destroy()
         recognizer = null
         tts?.let { engine -> ttsThread.execute { engine.shutdown() } }
@@ -167,7 +210,10 @@ class Voice(private val context: Context) {
         if (!ok) return false
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) { Log.i(TAG, "TTS started") }
-            override fun onDone(utteranceId: String?) { Log.i(TAG, "TTS done") }
+            override fun onDone(utteranceId: String?) {
+                Log.i(TAG, "TTS synthesized $utteranceId")
+                if (utteranceId != null) main.post { play(utteranceId) }
+            }
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) { Log.w(TAG, "TTS error") }
             override fun onError(utteranceId: String?, errorCode: Int) { Log.w(TAG, "TTS error $errorCode") }

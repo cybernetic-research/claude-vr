@@ -9,10 +9,13 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.hardware.HardwareBuffer
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.AudioManager
 import android.media.Image
 import android.media.ImageReader
+import android.media.ToneGenerator
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -24,6 +27,10 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Mirrors what the user sees (via MediaProjection) and hands out the newest
@@ -39,6 +46,11 @@ class CaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var reader: ImageReader? = null
     private var latest: Image? = null
+    private var demo: DemoRecorder? = null
+    private var frameWidth = 0
+    private var frameHeight = 0
+
+    val recording get() = demo != null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -93,10 +105,17 @@ class CaptureService : Service() {
         val height = if (dm.heightPixels > 0) dm.heightPixels else 1000
         val dpi = if (dm.densityDpi > 0) dm.densityDpi else 200
 
-        val r = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3)
+        frameWidth = width
+        frameHeight = height
+        // CPU-readable for snapshots, GPU-sampled so DemoRecorder can draw frames without copying.
+        val r = ImageReader.newInstance(
+            width, height, PixelFormat.RGBA_8888, 3,
+            HardwareBuffer.USAGE_CPU_READ_OFTEN or HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
+        )
         // Keep draining so the producer never stalls; snapshot() reads whatever is newest.
         r.setOnImageAvailableListener({ reader ->
             val img = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
+            demo?.addFrame(img)
             synchronized(this) {
                 latest?.close()
                 latest = img
@@ -153,6 +172,44 @@ class CaptureService : Service() {
         return ByteArrayOutputStream().also { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
     }
 
+    /** Starts recording the view to demos/demo-<time>/ and plays a sync beep. Main-thread callback. */
+    fun startRecording(onResult: (File?) -> Unit) {
+        handler.post {
+            val dir = File(
+                getExternalFilesDir("demos"),
+                "demo-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+            ).apply { mkdirs() }
+            demo = try {
+                DemoRecorder(this, dir, frameWidth, frameHeight)
+            } catch (e: Exception) {
+                Log.w(TAG, "couldn't start demo recording", e)
+                null
+            }
+            // A short beep marks t=0 so a separately recorded mic track can be lined up.
+            if (demo != null) {
+                val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+                tone.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+                handler.postDelayed({ tone.release() }, 500)
+            }
+            val started = demo?.dir
+            main.post { onResult(started) }
+        }
+    }
+
+    fun stopRecording(onResult: (File?) -> Unit = {}) {
+        handler.post {
+            val dir = demo?.dir
+            demo?.stop()
+            demo = null
+            main.post { onResult(dir) }
+        }
+    }
+
+    /** Saves a copy of a spoken reply into the current recording, if any. */
+    fun addSpeech(wav: File) {
+        handler.post { demo?.addSpeech(wav) }
+    }
+
     fun stopCapture() {
         handler.post {
             if (projection != null) projection?.stop() // triggers onStop -> release()
@@ -162,6 +219,8 @@ class CaptureService : Service() {
 
     private fun release() {
         instance = null
+        demo?.stop()
+        demo = null
         virtualDisplay?.release()
         virtualDisplay = null
         synchronized(this) {
