@@ -16,8 +16,9 @@ import java.io.File
  * draws each frame the ImageReader already receives into a MediaRecorder
  * surface. Claude's spoken replies are saved alongside as speech-<ms>.wav
  * so they can be mixed in afterwards. Times are measured from the first video
- * frame (encoder start-up can take a second or more), and sync.txt records how
- * long after the start beep that frame came.
+ * frame we send, and sync.txt records the beep-to-first-frame gap plus the first
+ * and last frame times. The encoder can drop frames while it warms up, so the
+ * video's real start is (last frame - video length); mix.sh corrects for that.
  */
 class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
 
@@ -26,6 +27,7 @@ class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
     private val videoHeight = (height + 15) / 16 * 16
     private val dst = Rect(0, 0, videoWidth, videoHeight)
     @Volatile private var firstFrameAt = 0L
+    @Volatile private var lastFrameAt = 0L
     private var beepAt = 0L
 
     @Suppress("DEPRECATION")
@@ -53,7 +55,8 @@ class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
             } finally {
                 surface.unlockCanvasAndPost(canvas)
             }
-            if (firstFrameAt == 0L) firstFrameAt = SystemClock.elapsedRealtime()
+            lastFrameAt = SystemClock.elapsedRealtime()
+            if (firstFrameAt == 0L) firstFrameAt = lastFrameAt
         } catch (e: Exception) {
             Log.w(TAG, "frame dropped", e)
         } finally {
@@ -75,7 +78,10 @@ class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
 
     fun stop() {
         if (firstFrameAt != 0L && beepAt != 0L) {
-            File(dir, "sync.txt").writeText("beep_to_video_ms=${firstFrameAt - beepAt}\n")
+            File(dir, "sync.txt").writeText(
+                "beep_to_video_ms=${firstFrameAt - beepAt}\n" +
+                    "first_frame_ms=$firstFrameAt\nlast_frame_ms=$lastFrameAt\n"
+            )
         }
         try {
             recorder.stop()
