@@ -182,6 +182,11 @@ class CaptureService : Service() {
         notifyState(false, msg)
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopCapture()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         instance = null
         thread.quitSafely()

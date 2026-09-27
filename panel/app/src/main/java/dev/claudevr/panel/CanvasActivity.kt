@@ -59,6 +59,7 @@ class CanvasActivity : Activity() {
             addView(web, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         })
 
+        current = this
         render()
     }
 
@@ -68,6 +69,7 @@ class CanvasActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (current === this) current = null
         web.destroy()
         super.onDestroy()
     }
@@ -81,11 +83,17 @@ class CanvasActivity : Activity() {
     companion object {
         /** Latest drawing. Held here rather than in the Intent, which caps payload size. */
         private var content: Pair<String, String>? = null
+        private var current: CanvasActivity? = null
 
         /** Shows (or reopens) the canvas window with the given drawing. */
         fun show(context: Context, title: String, html: String) {
             content = title to html
             open(context) // an open canvas re-renders via onNewIntent
+        }
+
+        /** Closes the canvas window if it's open (called when the chat panel closes). */
+        fun close() {
+            current?.finishAndRemoveTask()
         }
 
         fun open(context: Context) {

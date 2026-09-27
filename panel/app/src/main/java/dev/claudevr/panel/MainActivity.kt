@@ -97,6 +97,11 @@ class MainActivity : Activity(), Voice.Listener {
     override fun onDestroy() {
         CaptureService.listener = null
         voice.release()
+        if (isFinishing) {
+            // Closing the panel (the X) ends the whole app, not just this window.
+            CaptureService.instance?.stopCapture()
+            CanvasActivity.close()
+        }
         super.onDestroy()
     }
 
