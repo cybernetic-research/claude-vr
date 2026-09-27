@@ -15,7 +15,9 @@ import java.io.File
  * one virtual display per MediaProjection, so instead of a second capture this
  * draws each frame the ImageReader already receives into a MediaRecorder
  * surface. Claude's spoken replies are saved alongside as speech-<ms>.wav
- * (offset from the start) so they can be mixed in afterwards.
+ * so they can be mixed in afterwards. Times are measured from the first video
+ * frame (encoder start-up can take a second or more), and sync.txt records how
+ * long after the start beep that frame came.
  */
 class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
 
@@ -23,7 +25,8 @@ class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
     private val videoWidth = (width + 15) / 16 * 16
     private val videoHeight = (height + 15) / 16 * 16
     private val dst = Rect(0, 0, videoWidth, videoHeight)
-    private val startedAt = SystemClock.elapsedRealtime()
+    @Volatile private var firstFrameAt = 0L
+    private var beepAt = 0L
 
     @Suppress("DEPRECATION")
     private val recorder = (if (Build.VERSION.SDK_INT >= 31) MediaRecorder(context) else MediaRecorder()).apply {
@@ -50,6 +53,7 @@ class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
             } finally {
                 surface.unlockCanvasAndPost(canvas)
             }
+            if (firstFrameAt == 0L) firstFrameAt = SystemClock.elapsedRealtime()
         } catch (e: Exception) {
             Log.w(TAG, "frame dropped", e)
         } finally {
@@ -57,13 +61,22 @@ class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
         }
     }
 
-    /** Keeps a copy of a spoken reply, named by its offset from the start of the recording. */
+    /** Call as the sync beep starts playing. */
+    fun markBeep() {
+        beepAt = SystemClock.elapsedRealtime()
+    }
+
+    /** Keeps a copy of a spoken reply, named by its offset from the first video frame. */
     fun addSpeech(wav: File) {
-        val offset = SystemClock.elapsedRealtime() - startedAt
+        val start = firstFrameAt.takeIf { it != 0L } ?: return
+        val offset = SystemClock.elapsedRealtime() - start
         wav.copyTo(File(dir, "speech-%07d.wav".format(offset)), overwrite = true)
     }
 
     fun stop() {
+        if (firstFrameAt != 0L && beepAt != 0L) {
+            File(dir, "sync.txt").writeText("beep_to_video_ms=${firstFrameAt - beepAt}\n")
+        }
         try {
             recorder.stop()
         } catch (e: RuntimeException) {

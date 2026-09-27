@@ -189,7 +189,10 @@ class CaptureService : Service() {
                 null
             }
             // A 1 kHz beep marks t=0 so a separately recorded mic track can be lined up.
-            if (demo != null) syncBeep()
+            if (demo != null) {
+                demo?.markBeep()
+                syncBeep()
+            }
             val started = demo?.dir
             notifyState(true, null) // refresh the Rec button, e.g. when started over adb
             main.post { onResult(started) }
