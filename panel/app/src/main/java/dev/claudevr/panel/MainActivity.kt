@@ -427,6 +427,6 @@ class MainActivity : Activity(), Voice.Listener {
         private const val REQ_CAPTURE = 1
         private const val REQ_NOTIF = 2
         private const val REQ_MIC = 3
-        private const val SPLASH_MS = 2200L
+        private const val SPLASH_MS = 3000L
     }
 }
