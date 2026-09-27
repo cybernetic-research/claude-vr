@@ -12,10 +12,11 @@ import android.graphics.PixelFormat
 import android.hardware.HardwareBuffer
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.AudioManager
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.Image
 import android.media.ImageReader
-import android.media.ToneGenerator
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -31,6 +32,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.sin
 
 /**
  * Mirrors what the user sees (via MediaProjection) and hands out the newest
@@ -185,13 +188,10 @@ class CaptureService : Service() {
                 Log.w(TAG, "couldn't start demo recording", e)
                 null
             }
-            // A short beep marks t=0 so a separately recorded mic track can be lined up.
-            if (demo != null) {
-                val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-                tone.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
-                handler.postDelayed({ tone.release() }, 500)
-            }
+            // A 1 kHz beep marks t=0 so a separately recorded mic track can be lined up.
+            if (demo != null) syncBeep()
             val started = demo?.dir
+            notifyState(true, null) // refresh the Rec button, e.g. when started over adb
             main.post { onResult(started) }
         }
     }
@@ -201,8 +201,34 @@ class CaptureService : Service() {
             val dir = demo?.dir
             demo?.stop()
             demo = null
+            notifyState(true, null)
             main.post { onResult(dir) }
         }
+    }
+
+    private fun syncBeep() {
+        val rate = 48_000
+        val n = rate * 3 / 10 // 300 ms
+        val ramp = rate / 100 // 10 ms fade in/out, no clicks
+        val pcm = ShortArray(n) { i ->
+            val env = minOf(1.0, minOf(i, n - i).toDouble() / ramp)
+            (sin(2 * PI * 1000 * i / rate) * env * 30_000).toInt().toShort()
+        }
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(rate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(n * 2)
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .build()
+        track.write(pcm, 0, n)
+        track.play()
+        handler.postDelayed({ track.release() }, 1_000)
     }
 
     /** Saves a copy of a spoken reply into the current recording, if any. */

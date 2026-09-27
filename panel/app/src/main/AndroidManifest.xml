@@ -50,6 +50,17 @@
                 android:defaultWidth="850dp" />
         </activity>
 
+        <!-- adb-only remote control for demo recording (DUMP is held by the shell, not apps). -->
+        <receiver
+            android:name=".DemoControlReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="dev.claudevr.panel.START_REC" />
+                <action android:name="dev.claudevr.panel.STOP_REC" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".CaptureService"
             android:exported="false"
