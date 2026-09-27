@@ -45,6 +45,7 @@ class MainActivity : Activity(), Voice.Listener {
 
     private var busy = false
     private var askedForCapture = false
+    private var splashing = false
 
     private val density get() = resources.displayMetrics.density
     private fun dp(v: Int) = (v * density).toInt()
@@ -65,20 +66,32 @@ class MainActivity : Activity(), Voice.Listener {
         }
         updateCaptureState()
 
-        if (Build.VERSION.SDK_INT >= 33) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
-        }
         addNote("Ask anything. With \"Send my view\" on, Claude sees what you see when you send.")
-        if (settings.apiKey.isBlank()) showSettings()
+        if (!splashing) startupPrompts()
     }
 
-    override fun onResume() {
-        super.onResume()
+    /** Permission prompts and first-run settings, held back until the splash has been seen. */
+    private fun startupPrompts() {
+        val needsNotif = Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        when {
+            settings.apiKey.isBlank() -> showSettings() // Save then asks for capture
+            needsNotif -> requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
+            else -> maybeRequestCapture()
+        }
+    }
+
+    private fun maybeRequestCapture() {
         // Ask for capture once per launch; the consent prompt is Horizon OS's own.
         if (!askedForCapture && settings.apiKey.isNotBlank() && CaptureService.instance == null) {
             askedForCapture = true
             requestCapture()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!splashing) maybeRequestCapture() // e.g. after the notification prompt closes
     }
 
     override fun onDestroy() {
@@ -90,13 +103,18 @@ class MainActivity : Activity(), Voice.Listener {
     // ---- UI -------------------------------------------------------------
 
     private fun showSplash(root: FrameLayout) {
+        splashing = true
         val splash = SplashView(this)
         root.addView(splash)
         splash.animate()
             .alpha(0f)
             .setStartDelay(SPLASH_MS)
             .setDuration(400)
-            .withEndAction { root.removeView(splash) }
+            .withEndAction {
+                root.removeView(splash)
+                splashing = false
+                startupPrompts()
+            }
     }
 
     private fun buildUi(): View {
@@ -347,6 +365,10 @@ class MainActivity : Activity(), Voice.Listener {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (requestCode == REQ_NOTIF) {
+            maybeRequestCapture()
+            return
+        }
         if (requestCode != REQ_MIC) return
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) toggleMic()
         else addNote("Microphone permission denied.")
@@ -414,10 +436,7 @@ class MainActivity : Activity(), Voice.Listener {
                 settings.model = model.text.toString()
                 settings.effort = effort.selectedItem as String
                 settings.speakReplies = speak.isChecked
-                if (!askedForCapture && settings.apiKey.isNotBlank() && CaptureService.instance == null) {
-                    askedForCapture = true
-                    requestCapture()
-                }
+                maybeRequestCapture()
             }
             .setNegativeButton("Cancel", null)
             .show()
