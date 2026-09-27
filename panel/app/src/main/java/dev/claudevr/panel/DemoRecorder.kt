@@ -17,8 +17,7 @@ import java.io.File
  * surface. Claude's spoken replies are saved alongside as speech-<ms>.wav
  * so they can be mixed in afterwards. Times are measured from the first video
  * frame we send, and sync.txt records the beep-to-first-frame gap plus the first
- * and last frame times. The encoder can drop frames while it warms up, so the
- * video's real start is (last frame - video length); mix.sh corrects for that.
+ * and last frame times (handy for checking a recording's length against the video).
  */
 class DemoRecorder(context: Context, val dir: File, width: Int, height: Int) {
 
