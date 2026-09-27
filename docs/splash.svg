@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="700" viewBox="0 0 800 700">
+  <rect width="800" height="700" fill="#1F1E1D"/>
+  <g transform="translate(400,308) scale(4.0185) translate(-54,-54)">
+    <path d="M19,49 H89 A5,5 0 0 1 89,59 H19 A5,5 0 0 1 19,49 Z" fill="#9A968C"/>
+    <path d="M37,39 H71 A12,12 0 0 1 83,51 V61 A12,12 0 0 1 71,73 H61 L54,66 L47,73 H37 A12,12 0 0 1 25,61 V51 A12,12 0 0 1 37,39 Z" fill="#E8E6DC"/>
+    <path d="M54,44 L54,64 M44,54 L64,54 M46.9,46.9 L61.1,61.1 M61.1,46.9 L46.9,61.1" stroke="#D97757" stroke-width="4" stroke-linecap="round" fill="none"/>
+  </g>
+  <text x="400" y="535" font-family="Georgia, serif" font-size="64" fill="#E8E6DC" text-anchor="middle">Claude Panel</text>
+  <text x="400" y="585" font-family="Helvetica, sans-serif" font-size="26" fill="#9A968C" text-anchor="middle">Claude, floating in your headset</text>
+</svg>

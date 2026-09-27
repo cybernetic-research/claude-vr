@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original art: a stylised headset visor with an orange spark. 108dp adaptive-icon canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- strap -->
+    <path
+        android:pathData="M22,49.5 H86 A4.5,4.5 0 0 1 86,58.5 H22 A4.5,4.5 0 0 1 22,49.5 Z"
+        android:fillColor="@color/strap" />
+    <!-- visor with nose cut-out -->
+    <path
+        android:pathData="M37,39 H71 A12,12 0 0 1 83,51 V61 A12,12 0 0 1 71,73 H61 L54,66 L47,73 H37 A12,12 0 0 1 25,61 V51 A12,12 0 0 1 37,39 Z"
+        android:fillColor="@color/headset" />
+    <!-- spark -->
+    <path
+        android:pathData="M54,44 L54,64 M44,54 L64,54 M46.9,46.9 L61.1,61.1 M61.1,46.9 L46.9,61.1"
+        android:strokeColor="@color/spark"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>
