@@ -1,6 +1,9 @@
 # Claude VR
 
-<p align="center"><img src="docs/splash.svg" width="480" alt="Claude Panel splash: a headset with an orange spark"></p>
+<p align="center">
+  <a href="https://youtu.be/oHARg-uKmbM"><img src="https://img.youtube.com/vi/oHARg-uKmbM/maxresdefault.jpg" width="640" alt="Watch the demo on YouTube: Claude identifies a circuit board and helps in a VR game"></a><br>
+  <b><a href="https://youtu.be/oHARg-uKmbM">▶ Watch the demo (4 min)</a></b>: Claude identifies a buck converter, draws the wiring to an ESP32, and helps out mid-game in Vex Mage.
+</p>
 
 Claude, floating in a Meta Quest headset. **Claude Panel** is a sideloaded Android app for Horizon OS that:
 

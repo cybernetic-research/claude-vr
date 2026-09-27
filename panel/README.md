@@ -36,6 +36,25 @@ Open Settings in the panel, tap into the API key field, then from a Mac terminal
 adb shell input text 'sk-ant-...'
 ```
 
+## Recording demos
+
+The Quest's built-in recorder stops working while Claude Panel is capturing
+the view, so the panel can record itself. With capture on, tap **● Rec**: it
+plays a short 1 kHz beep and saves the view to
+`/sdcard/Android/data/dev.claudevr.panel/files/demos/demo-<time>/video.mp4`.
+Claude's spoken replies are saved next to it as `speech-<ms>.wav`, named by
+when they started playing, ready to be mixed back in. Recording can also be
+started and stopped from a computer, so an external mic can be started first
+and catch the beep for syncing:
+
+```sh
+adb shell am broadcast -a dev.claudevr.panel.START_REC -n dev.claudevr.panel/.DemoControlReceiver
+adb shell am broadcast -a dev.claudevr.panel.STOP_REC -n dev.claudevr.panel/.DemoControlReceiver
+```
+
+On a Mac, record the external mic with `sox -t coreaudio "<device>" out.wav`
+rather than ffmpeg's avfoundation input, which silently drops audio.
+
 ## Limits
 
 - While an immersive VR app runs, Horizon OS hides every 2D panel, this one
